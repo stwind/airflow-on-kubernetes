@@ -1,0 +1,12 @@
+---
+  # put your more serious password here
+  mysqlRootPassword: root
+  mysqlUser: airflow
+  mysqlPassword: airflow
+  mysqlDatabase: airflow
+
+  configurationFiles:
+    mysql.cnf: |-
+      [mysqld]
+      # https://airflow.apache.org/docs/stable/faq.html#how-to-fix-exception-global-variable-explicit-defaults-for-timestamp-needs-to-be-on-1
+      explicit_defaults_for_timestamp=1
