@@ -4,7 +4,7 @@ Airflow and Kubernetes are perfect match, but they are also complicated beasts. 
 
 In the repo, instead of providing another full feature helm chart or terraform module, I try to use just command line to put a minimal Airflow on Kubernetes, so anyone interested could just copy and paste to reproduce the same results, maybe as a starting point or trouble shooting tool for their own solution.
 
-##Prerequisites
+## Prerequisites
 
 * Local
   * Docker For Mac: `19.03.5`
