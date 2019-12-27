@@ -1,8 +1,24 @@
+# Bare Minimal Airflow On Kubernetes
+
+Airflow and Kubernetes are perfect match, but they are also complicated beasts. There are many attempts (see [References](#references))  to provide partial or complete deployment solution with custom helm charts. But instead of directly installing the them, usually one just look around for useful snippets and ideas to build their own solution.
+
+In the repo, instead of providing another full feature helm chart or terraform module, I try to use just command line to put a minimal Airflow on Kubernetes, so anyone interested could just copy and paste to reproduce the same results, maybe as a starting point or trouble shooting tool for their own solution.
+
+##Prerequisites
+
+* Local
+  * Docker For Mac: `19.03.5`
+  * Kubernetes: `v1.15.5`
+  * Helm: `v3.0.1`
+* EKS
+* GKE
+* AKS
+
 ## Preparation
 
 Airflow does [not allow SQLite to be used with the kubernetes executor](https://github.com/apache/airflow/blob/6fffa5b0d7840727a96dc1765a0166656bc7ea52/airflow/configuration.py#L170), so you need to have a MySQL or PostgreSQL server. For this demostration, we use MySQL.
 
-### Build your own ariflow docker image
+### Build the docker image
 
 ```shell
 $ docker build -t my/airflow -<<'EOF'
@@ -166,3 +182,13 @@ $ kubectl delete po airflow
 $ helm delete mysql
 ```
 
+## References
+
+* [Bitnami Apache Airflow Multi-Tier now available in Azure Marketplace | Blog | Microsoft Azure](https://azure.microsoft.com/en-us/blog/bitnami-apache-airflow-multi-tier-now-available-in-azure-marketplace/)
+* [tekn0ir/airflow-chart: Helm chart for deploying Apache Airflow in kubernetes](https://github.com/tekn0ir/airflow-chart)
+* [puckel/docker-airflow: Docker Apache Airflow](https://github.com/puckel/docker-airflow)
+* [GoogleCloudPlatform/airflow-operator: Kubernetes custom controller and CRDs to managing Airflow](https://github.com/GoogleCloudPlatform/airflow-operator)
+* [villasv/aws-airflow-stack: Turbine: the bare metals behind a complete Airflow setup](https://github.com/villasv/aws-airflow-stack)
+* [mumoshu/kube-airflow: A docker image and kubernetes config files to run Airflow on Kubernetes](https://github.com/mumoshu/kube-airflow)
+* [rolanddb/airflow-on-kubernetes: A guide to running Airflow on Kubernetes](https://github.com/rolanddb/airflow-on-kubernetes)
+* [EamonKeane/airflow-GKE-k8sExecutor-helm: Quickly get a kubernetes executor airflow environment provisioned on GKE. Azure Kubernetes Service instructions included also as are instructions for docker-for-mac.](https://github.com/EamonKeane/airflow-GKE-k8sExecutor-helm)
