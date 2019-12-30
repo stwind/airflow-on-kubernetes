@@ -4,7 +4,7 @@ Airflow and Kubernetes are perfect match, but they are complicated beasts to eac
 
 In the repo, instead of providing another full feature helm chart or terraform module, I try to use just command line to setup a minimal Airflow on Kubernetes. Anyone interested could hopefully just copy and paste to reproduce the same results, maybe as a starting point or trouble shooting tool for their own solution.
 
-## Contents
+## <a name="toc"></a>Contents
 
 * [Prerequisites](#prerequisites)
 * [Preparation](#preparation)
@@ -15,6 +15,14 @@ In the repo, instead of providing another full feature helm chart or terraform m
 		* [Start Airflow](#local-start)
 		* [Testing](#local-test)
 		* [Cleanup](#local-cleanup)
+  * [EKS](#eks)
+	  * [IAM Setup](#eks-iam)
+	  * [ECR Setup](#eks-ecr)
+	  * [Create Cluster](#eks-cluster)
+	  * [Create RDS](#eks-rds)
+	  * [Connect VPCs](#eks-vpc)
+	  * [Testing Airflow](#eks-test)
+	  * [Cleanup](#eks-cleanup)
 
 ## Prerequisites
 
@@ -62,9 +70,9 @@ EOF
 
 ## Environments
 
-### <a name="local"></a>Local
+### <a name="local"></a>Local [▲](#toc)
 
-#### <a name="local-mysql"></a>MySQL
+#### <a name="local-mysql"></a>MySQL [▲](#toc) 
 
 In case you don't have one yet, you can install with helm.
 
@@ -103,7 +111,7 @@ Enter password:
 +---------------------------------+-------+
 ```
 
-#### <a name="local-init-db"></a>Initialize Database
+#### <a name="local-init-db"></a>Initialize Database [▲](#toc)
 
 ```sh
 $ kubectl run airflow-initdb \
@@ -114,7 +122,7 @@ $ kubectl run airflow-initdb \
     --command -- airflow initdb
 ```
 
-#### <a name="local-start"></a>Start Airflow
+#### <a name="local-start"></a>Start Airflow [▲](#toc)
 
 ```sh
 $ kubectl run airflow -ti --rm --restart=Never --image=my/airflow --overrides='
@@ -177,7 +185,7 @@ Or if you want to see the UI
 $ kubectl port-forward airflow 8080
 ```
 
-#### <a name="local-test"></a>Testing
+#### <a name="local-test"></a>Testing [▲](#toc)
 
 Open another shell, list the dags by running the following 
 
@@ -197,7 +205,7 @@ $ kubectl exec -ti airflow -c webserver airflow trigger_dag foobar
 $ kubectl exec -ti airflow -c webserver airflow list_dag_runs foobar
 ```
 
-#### <a name="local-cleanup"></a>Cleanup
+#### <a name="local-cleanup"></a>Cleanup [▲](#toc)
 
 Delete the pod and MySQL
 
@@ -206,7 +214,7 @@ $ kubectl delete po airflow
 $ helm delete mysql
 ```
 
-### EKS
+### <a name="eks"></a>EKS
 
 Some environment variables we will use later
 
@@ -215,7 +223,7 @@ $ export AWS_REGION=$(aws configure get region)
 $ export AWS_ACCOUNT_ID=$(aws sts get-caller-identity | jq -r '.Account')
 ```
 
-#### IAM
+#### <a name="eks-iam"></a>IAM Setup
 
 Attach the following managed IAM policies
 
@@ -242,7 +250,7 @@ and create a custom policy called `AmazonEKSFullAccess` and attach to your user 
 }
 ```
 
-#### ECR
+#### <a name="eks-ecr" />ECR Setup
 
 First we have to setup a ECR repository to hold the image, you can create it in the web console or using the cli.
 
@@ -271,11 +279,7 @@ when done, your image should be in the repository
 $ aws ecr describe-images --repository-name airflow
 ```
 
-##### References
-
-* [Pushing an Image - Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/docker-push-ecr-image.html)
-
-#### Create EKS cluster
+#### <a name="eks-cluster" />Create EKS cluster
 
 Create a minimal EKS cluster called `airflow-test`
 
@@ -300,7 +304,7 @@ get more information about the cluster
 $ eksctl get cluster -n airflow-test
 ```
 
-#### Create RDS
+#### <a name="eks-rds" />Create RDS
 
 Now we are going to create and RDS to hold the data.
 
@@ -436,7 +440,7 @@ $ aws rds describe-engine-default-parameters --db-parameter-group-family mysql5.
 }
 ```
 
-#### Connect VPCs
+#### <a name="eks-vpc" />Connect VPCs
 
 We are now going to connect the two VPCs of the eks cluster and the RDS. 
 
@@ -504,7 +508,7 @@ online
 pod "test-mysql" deleted
 ```
 
-#### Testing Airflow
+#### <a name="eks-test" />Testing Airflow
 
 We are now ready to test airflow. First let's initialize the database
 
@@ -636,7 +640,7 @@ foobarbar-d5457f56526a4084bb964942a18f95d9   0/1     Terminating         0      
 
 ```
 
-#### Cleanup
+#### <a name="eks-cleanup" /> Cleanup
 
 Cleanup the VPC routes
 
