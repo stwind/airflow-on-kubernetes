@@ -223,7 +223,7 @@ $ export AWS_REGION=$(aws configure get region)
 $ export AWS_ACCOUNT_ID=$(aws sts get-caller-identity | jq -r '.Account')
 ```
 
-#### <a name="eks-iam"></a>IAM Setup
+#### <a name="eks-iam"></a>IAM Setup [▲](#toc) 
 
 Attach the following managed IAM policies
 
@@ -250,7 +250,7 @@ and create a custom policy called `AmazonEKSFullAccess` and attach to your user 
 }
 ```
 
-#### <a name="eks-ecr"></a>ECR Setup
+#### <a name="eks-ecr"></a>ECR Setup [▲](#toc)
 
 First we have to setup a ECR repository to hold the image, you can create it in the web console or using the cli.
 
@@ -279,7 +279,7 @@ when done, your image should be in the repository
 $ aws ecr describe-images --repository-name airflow
 ```
 
-#### <a name="eks-cluster"></a>Create EKS cluster
+#### <a name="eks-cluster"></a>Create EKS cluster [▲](#toc)
 
 Create a minimal EKS cluster called `airflow-test`
 
@@ -304,7 +304,7 @@ get more information about the cluster
 $ eksctl get cluster -n airflow-test
 ```
 
-#### <a name="eks-rds"></a>Create RDS
+#### <a name="eks-rds"></a>Create RDS [▲](#toc)
 
 Now we are going to create and RDS to hold the data.
 
@@ -440,7 +440,7 @@ $ aws rds describe-engine-default-parameters --db-parameter-group-family mysql5.
 }
 ```
 
-#### <a name="eks-vpc"></a>Connect VPCs
+#### <a name="eks-vpc"></a>Connect VPCs [▲](#toc)
 
 We are now going to connect the two VPCs of the eks cluster and the RDS. 
 
@@ -508,7 +508,7 @@ online
 pod "test-mysql" deleted
 ```
 
-#### <a name="eks-test"></a>Testing Airflow
+#### <a name="eks-test"></a>Testing Airflow [▲](#toc)
 
 We are now ready to test airflow. First let's initialize the database
 
