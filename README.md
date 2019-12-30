@@ -70,7 +70,7 @@ EOF
 
 ## Environments
 
-### <a name="local"></a>Local [▲](#toc)
+### <a name="local"></a>Local
 
 #### <a name="local-mysql"></a>MySQL [▲](#toc) 
 
