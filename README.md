@@ -1,6 +1,6 @@
 # Bare Minimal Airflow On Kubernetes
 
-Airflow and Kubernetes are perfect match, but they are complicated beasts to each their own. There are many attempts (see [References](#references))  to provide partial or complete deployment solution with custom helm charts. But usually one just look around for useful snippets and ideas to build their own solution instead of directly installing the them, .
+Airflow and Kubernetes are perfect match, but they are complicated beasts to each their own. There are many  [attempts](#references)  to provide partial or complete deployment solution with custom helm charts. But usually one just look around for useful snippets and ideas to build their own solution instead of directly installing the them, .
 
 In the repo, instead of providing another full feature helm chart or terraform module, I try to use just command line to setup a minimal Airflow on Kubernetes. Anyone interested could hopefully just copy and paste to reproduce the same results, maybe as a starting point or trouble shooting tool for their own solution.
 
@@ -640,7 +640,7 @@ foobarbar-d5457f56526a4084bb964942a18f95d9   0/1     Terminating         0      
 
 ```
 
-#### <a name="eks-cleanup"></a>Cleanup
+#### <a name="eks-cleanup"></a>Cleanup [▲](#toc)
 
 Cleanup the VPC routes
 
