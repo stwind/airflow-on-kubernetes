@@ -284,7 +284,7 @@ $ aws ecr describe-images --repository-name airflow
 Create a minimal EKS cluster called `airflow-test`
 
 ```sh
-$ https_proxy=127.0.0.1:1235 eksctl create cluster --name airflow-test \
+$ eksctl create cluster --name airflow-test \
   --version 1.14 \
   --nodes 1 \
   --ssh-access
@@ -672,6 +672,60 @@ Delete images and repository
 ```sh
 $ aws ecr batch-delete-image --repository-name airflow --image-ids $(aws ecr list-images --repository-name airflow | jq -r '.imageIds | reduce .[] as $img (""; . + "imageDigest=\($img.imageDigest) ")')
 $ aws ecr delete-repository --repository-name airflow
+```
+
+### <a name="aks"></a>AKS
+
+First create an `airflow` resource group
+
+```sh
+$ az group create --name airflow
+```
+
+#### <a name="aks-cr"></a>Container Registry [▲](#toc)
+
+Create a `Basic` registry and login
+
+```sh
+$ az acr create -g airflow -n airflow --sku Basic
+$ az acr login -n airflow
+```
+
+Push the image
+
+```sh
+$ docker tag my/airflow airflow.azurecr.io/airflow
+$ docker push airflow.azurecr.io/airflow
+```
+
+#### <a name="aks-cluster"></a>Create Cluster [▲](#toc)
+
+```sh
+$ az aks create -g airflow -n airflow \
+  --kubernetes-version 1.15.5 \
+  --node-count 1
+```
+
+Configure local context
+
+```sh
+$ az aks get-credentials -g airflow --name airflow
+$ kubectl cluster-info
+```
+
+Run a simple pod
+
+```sh
+$ kubectl run echo -ti --rm --image=alpine --generator=run-pod/v1 --image-pull-policy=IfNotPresent --command -- sh
+```
+
+#### <a name="aks-db"></a>Create MySQL [▲](#toc)
+
+```sh
+$ az mysql server create -g airflow -n airflow \
+  --admin-user airflowmaster \
+  --admin-password airflowmaster \
+  --sku-name GP_Gen5_2 --version 5.7
 ```
 
 ## References
