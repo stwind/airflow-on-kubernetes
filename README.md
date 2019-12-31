@@ -969,10 +969,11 @@ foobarbar-00d0e6c0d92c4848a45a29941035f076   0/1     Terminating   0          14
 
 #### <a name="aks-cleanup"></a>Cleanup [▲](#toc)
 
-Delete the resource group
+Delete the resource group and remove the context
 
 ```sh
 $ az group delete -g airflow
+$ kubectl config delete-context airflow
 ```
 
 ## References
