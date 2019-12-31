@@ -23,9 +23,18 @@ In the repo, instead of providing another full feature helm chart or terraform m
 	  * [Connect VPCs](#eks-vpc)
 	  * [Testing Airflow](#eks-test)
 	  * [Cleanup](#eks-cleanup)
+  * [AKS](#aks)
+	  * [ACR setup](#aks-acr)
+	  * [Cluster Setup](#aks-cluster)
+	  * [MySQL Setup](#aks-mysql)
+	  * [Prepare Volume](#aks-vol)
+	  * [Testing Airflow](#aks-test)
+	  * [Cleanup](#aks-cleanup)
 
 ## Prerequisites
 
+* common
+  * [jq](https://stedolan.github.io/jq/): `1.6`
 * Local
   * Docker For Mac: `19.03.5`
   * Kubernetes: `v1.15.5`
@@ -33,7 +42,8 @@ In the repo, instead of providing another full feature helm chart or terraform m
 * EKS
   * [awscli](https://aws.amazon.com/cli/): `1.16.130`
   * [eksctl](https://eksctl.io/): `0.11.1`
-  * [jq](https://stedolan.github.io/jq/): `1.6`
+* AKS
+  * [azure-cli](https://docs.microsoft.com/en-us/cli/azure/): `2.0.78`
 
 ## Preparation
 
@@ -284,10 +294,7 @@ $ aws ecr describe-images --repository-name airflow
 Create a minimal EKS cluster called `airflow-test`
 
 ```sh
-$ eksctl create cluster --name airflow-test \
-  --version 1.14 \
-  --nodes 1 \
-  --ssh-access
+$ eksctl create cluster --name airflow-test --version 1.14 --nodes 1 --ssh-access
 ```
 
 After a few minutes for cluster, you should have a new cluster in your kubectl contexts, run the following commands to make sure
@@ -682,7 +689,7 @@ First create an `airflow` resource group
 $ az group create --name airflow
 ```
 
-#### <a name="aks-cr"></a>Container Registry [▲](#toc)
+#### <a name="aks-acr"></a>ACR Setup [▲](#toc)
 
 Create a `Basic` registry and login
 
@@ -698,12 +705,21 @@ $ docker tag my/airflow airflow.azurecr.io/airflow
 $ docker push airflow.azurecr.io/airflow
 ```
 
-#### <a name="aks-cluster"></a>Create Cluster [▲](#toc)
+Confirm the image is successfully pushed
+
+```sh
+$ az acr repository show-tags -n airflow --repository airflow
+```
+
+#### <a name="aks-cluster"></a>Cluster Setup [▲](#toc)
+
+Create a cluster with the ACR attached
 
 ```sh
 $ az aks create -g airflow -n airflow \
   --kubernetes-version 1.15.5 \
   --node-count 1
+  --attach-acr airflow
 ```
 
 Configure local context
@@ -716,16 +732,247 @@ $ kubectl cluster-info
 Run a simple pod
 
 ```sh
-$ kubectl run echo -ti --rm --image=alpine --generator=run-pod/v1 --image-pull-policy=IfNotPresent --command -- sh
+$ kubectl run echo -ti --rm --image=alpine --generator=run-pod/v1 --image-pull-policy=IfNotPresent --command -- echo hello
 ```
 
-#### <a name="aks-db"></a>Create MySQL [▲](#toc)
+#### <a name="aks-mysql"></a>MySQL Setup [▲](#toc)
+
+Create the server and the database
 
 ```sh
 $ az mysql server create -g airflow -n airflow \
   --admin-user airflowmaster \
-  --admin-password airflowmaster \
-  --sku-name GP_Gen5_2 --version 5.7
+  --admin-password airflowMa5ter \
+  --sku-name GP_Gen5_2 \
+  --version 5.7
+$ az mysql db create -g airflow -s airflow -n airflow
+```
+
+Enable a `Microsoft.SQL` service endpoint on the cluster subnet
+
+```sh
+$ export AKS_NODE_RESOURCE_GROUP=$(az aks show -n airflow -g airflow --query nodeResourceGroup -o tsv)
+$ export AKS_VNET_NAME=$(az resource list -g ${AKS_NODE_RESOURCE_GROUP} --query "[?type=='Microsoft.Network/virtualNetworks'] | [0].name" -o tsv)
+$ az network vnet subnet update --vnet-name ${AKS_VNET_NAME} -n aks-subnet -g ${AKS_NODE_RESOURCE_GROUP} --service-endpoints Microsoft.SQL
+```
+
+Enable MySQL access from the cluster
+
+```sh
+$ export AKS_SUBNET_ID=$(az network vnet show -n ${AKS_VNET_NAME} -g ${AKS_NODE_RESOURCE_GROUP} --query 'subnets[0].id' -o tsv)
+$ az mysql server vnet-rule create -n aks-mysql -g airflow -s airflow --subnet ${AKS_SUBNET_ID}
+```
+
+Check connection and confirm `explicit_defaults_for_timestamp` is `ON`
+
+```sh
+$ kubectl run test-mysql -ti --rm --image=alpine --generator=run-pod/v1 --image-pull-policy=IfNotPresent --command -- \
+    sh -c "apk -U add mysql-client && mysql -h airflow.mysql.database.azure.com -u airflowmaster -pairflowMa5ter --ssl -e \"SHOW VARIABLES LIKE 'explicit_defaults_for_timestamp'\""
++---------------------------------+-------+
+| Variable_name                   | Value |
++---------------------------------+-------+
+| explicit_defaults_for_timestamp | ON    |
++---------------------------------+-------+    
+```
+
+#### <a name="aks-vol"></a>Prepare Volume
+
+Create a storage account and use a Secret to hold it
+
+```sh
+$ export AKS_STORAGEACCT=$(az storage account create -g airflow -n airflow$RANDOM --sku Standard_LRS --query "name" -o tsv)
+$ export AKS_STORAGEKEY=$(az storage account keys list -g airflow -n ${AKS_STORAGEACCT}  --query "[0].value" -o tsv)
+$ kubectl create secret generic azure-secret \
+  --from-literal=azurestorageaccountname=${AKS_STORAGEACCT} \
+  --from-literal=azurestorageaccountkey=${AKS_STORAGEKEY}
+```
+
+Create a File Share and upload the dag file
+
+```sh
+$ az storage share create --account-name ${AKS_STORAGEACCT} --account-key ${AKS_STORAGEKEY} -n dags
+$ az storage file upload --account-name ${AKS_STORAGEACCT} --account-key ${AKS_STORAGEKEY} -s dags --source dags/foobar.py --path foobar.py
+$ az storage file list --account-name ${AKS_STORAGEACCT} --account-key ${AKS_STORAGEKEY} -s dags
+```
+
+Create the StorageClass, PersistentVolume and PersistentVolumeClaim
+
+```sh
+$ kubectl apply -f - <<EOF
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: azurefile
+provisioner: kubernetes.io/azure-file
+mountOptions:
+  - dir_mode=0755
+  - file_mode=0755
+parameters:
+  skuName: Standard_LRS
+  storageAccount: ${AKS_STORAGEACCT}
+  resourceGroup: airflow
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: airflow-dags
+  labels:
+    usage: airflow-dags
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: azurefile
+  azureFile:
+    secretName: azure-secret
+    shareName: dags
+    readOnly: true
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: airflow-dags
+spec:
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: azurefile
+  resources:
+    requests:
+      storage: 1Gi
+EOF
+```
+
+Make sure the pvc is bound to the volume
+
+```sh
+$ kubectl describe pvc airflow-dags
+```
+
+#### <a name="aks-test"></a>Testing Airflow
+
+Create the service account
+
+```sh
+$ kubectl apply -f - <<'EOF'
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: airflow
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: airflow
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: airflow
+subjects:
+  - kind: ServiceAccount
+    name: airflow
+roleRef:
+  kind: Role
+  name: airflow
+  apiGroup: rbac.authorization.k8s.io
+EOF
+```
+
+Initialize the database
+
+```sh
+$ kubectl run airflow-initdb \
+    --restart=Never -ti --rm --image-pull-policy=IfNotPresent --generator=run-pod/v1 \
+    --image=airflow.azurecr.io/airflow \
+    --env AIRFLOW__CORE__LOAD_EXAMPLES=False \
+    --env AIRFLOW__CORE__SQL_ALCHEMY_CONN="mysql://airflowmaster:airflowMa5ter@airflow.mysql.database.azure.com/airflow?ssl=true" \
+    --command -- airflow initdb
+```
+
+Start the scheduler
+
+```sh
+$ kubectl run airflow -ti --rm --restart=Never --image=airflow.azurecr.io/airflow --overrides='
+{
+  "spec": {
+    "serviceAccountName":"airflow",
+    "containers":[{
+      "name": "scheduler",
+      "image": "airflow.azurecr.io/airflow",
+      "imagePullPolicy":"IfNotPresent",
+      "command": ["airflow","scheduler"],
+      "stdin": true,
+      "tty": true,
+      "env": [
+        {"name":"AIRFLOW__CORE__LOAD_EXAMPLES","value":"False"},
+        {"name":"AIRFLOW__CORE__SQL_ALCHEMY_CONN","value":"mysql://airflowmaster:airflowMa5ter@airflow.mysql.database.azure.com/airflow?ssl=true"}, 
+        {"name":"AIRFLOW__CORE__EXECUTOR","value":"KubernetesExecutor"},
+        {"name":"AIRFLOW__KUBERNETES__WORKER_CONTAINER_REPOSITORY","value":"airflow.azurecr.io/airflow"},
+        {"name":"AIRFLOW__KUBERNETES__WORKER_CONTAINER_TAG","value":"latest"},
+        {"name":"AIRFLOW__KUBERNETES__WORKER_SERVICE_ACCOUNT_NAME","value":"airflow"},
+        {"name":"AIRFLOW__KUBERNETES__KUBE_CLIENT_REQUEST_ARGS","value":""},
+        {"name":"AIRFLOW__KUBERNETES__DELETE_WORKER_PODS","value":"True"},
+        {"name":"AIRFLOW__KUBERNETES__DAGS_VOLUME_CLAIM","value":"airflow-dags"}
+      ],
+      "volumeMounts": [{"mountPath": "/var/lib/airflow/dags","name": "dags"}]
+    }],
+    "volumes": [{"name":"dags","persistentVolumeClaim":{"claimName":"airflow-dags"}}]
+  }
+}'
+```
+
+Watch the pods
+
+```sh
+$ kubectl get po -w
+```
+
+Run the dag
+
+```sh
+$ kubectl exec -ti airflow airflow list_dags
+$ kubectl exec -ti airflow airflow unpause foobar
+$ kubectl exec -ti airflow airflow trigger_dag foobar
+$ kubectl exec -ti airflow airflow list_dag_runs foobar
+```
+
+Here is the pods logs
+
+```
+NAME                                         READY   STATUS    RESTARTS   AGE
+airflow                                      1/1     Running   0          48s
+foobarbar-00d0e6c0d92c4848a45a29941035f076   1/1     Running   0          8s
+foobarfoo-fb28dd8a155541379fd1a6261f41ae0b   1/1     Running   0          14s
+foobarfoo-fb28dd8a155541379fd1a6261f41ae0b   0/1     Completed   0          15s
+foobarfoo-fb28dd8a155541379fd1a6261f41ae0b   0/1     Terminating   0          16s
+foobarfoo-fb28dd8a155541379fd1a6261f41ae0b   0/1     Terminating   0          16s
+foobarbar-00d0e6c0d92c4848a45a29941035f076   0/1     Completed     0          14s
+foobarbar-00d0e6c0d92c4848a45a29941035f076   0/1     Terminating   0          14s
+foobarbar-00d0e6c0d92c4848a45a29941035f076   0/1     Terminating   0          14s
+```
+
+#### <a name="aks-cleanup"></a>Cleanup
+
+Delete the resource group
+
+```sh
+$ az group delete -g airflow
 ```
 
 ## References
@@ -742,3 +989,5 @@ $ az mysql server create -g airflow -n airflow \
 * [airflow-rbac.yml](https://gist.github.com/noqcks/04d4f4a2846ec1e0ed2fbda58907ca6d)
 * [pahud/amazon-eks-workshop: Amazon EKS workshop](https://github.com/pahud/amazon-eks-workshop)
 * [The Ultimate Kubernetes Cost Guide: Adding Persistent Volumes to the Mix](https://www.replex.io/blog/the-ultimate-kubernetes-cost-guide-adding-persistent-storage-to-the-mix)
+* [Deploying Apache Airflow on Azure Kubernetes Service](https://blog.godatadriven.com/airflow-on-aks)
+* [examples/staging/volumes/azure_file at master · kubernetes/examples](https://github.com/kubernetes/examples/tree/master/staging/volumes/azure_file)
