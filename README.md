@@ -775,7 +775,7 @@ $ kubectl run test-mysql -ti --rm --image=alpine --generator=run-pod/v1 --image-
 +---------------------------------+-------+    
 ```
 
-#### <a name="aks-vol"></a>Prepare Volume
+#### <a name="aks-vol"></a>Prepare Volume [▲](#toc)
 
 Create a storage account and use a Secret to hold it
 
@@ -850,7 +850,7 @@ Make sure the pvc is bound to the volume
 $ kubectl describe pvc airflow-dags
 ```
 
-#### <a name="aks-test"></a>Testing Airflow
+#### <a name="aks-test"></a>Testing Airflow [▲](#toc)
 
 Create the service account
 
@@ -967,7 +967,7 @@ foobarbar-00d0e6c0d92c4848a45a29941035f076   0/1     Terminating   0          14
 foobarbar-00d0e6c0d92c4848a45a29941035f076   0/1     Terminating   0          14s
 ```
 
-#### <a name="aks-cleanup"></a>Cleanup
+#### <a name="aks-cleanup"></a>Cleanup [▲](#toc)
 
 Delete the resource group
 
