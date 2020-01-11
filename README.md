@@ -1,6 +1,6 @@
 # Bare Minimal Airflow On Kubernetes
 
-Airflow and Kubernetes are perfect match, but they are complicated beasts to each their own. There are many  [attempts](#references)  to provide partial or complete deployment solution with custom helm charts. But usually one just look around for useful snippets and ideas to build their own solution instead of directly installing the them, .
+Airflow and Kubernetes are perfect match, but they are complicated beasts to each their own. There are many [attempts](#references) to provide partial or complete deployment solution with custom helm charts. But usually one just look around for useful snippets and ideas to build their own solution instead of directly installing them.
 
 In the repo, instead of providing another full feature helm chart or terraform module, I try to use just command line to setup a minimal Airflow on Kubernetes. Anyone interested could hopefully just copy and paste to reproduce the same results, maybe as a starting point or trouble shooting tool for their own solution.
 
@@ -105,7 +105,10 @@ configurationFiles:
 
 Install the [MySQL chart](https://github.com/helm/charts/tree/master/stable/mysql)
 
+Because `helm init` no longer exists in Helm 3, we need to add stable repo manually
+
 ```shell
+$ helm repo add stable https://kubernetes-charts.storage.googleapis.com/
 $ helm install -f mysql/values.yaml mysql stable/mysql
 ```
 
@@ -113,7 +116,7 @@ Make sure the `explicit_defaults_for_timestamp` is `ON`
 
 ```sh
 $ kubectl exec -ti $(kubectl get po -l app=mysql,release=mysql -o jsonpath="{.items[0].metadata.name}") -- mysql -u root -p -e "SHOW VARIABLES LIKE 'explicit_defaults_for_timestamp'"
-Enter password:
+Enter password: root
 +---------------------------------+-------+
 | Variable_name                   | Value |
 +---------------------------------+-------+
@@ -313,7 +316,7 @@ $ eksctl get cluster -n airflow-test
 
 #### <a name="eks-rds"></a>Create RDS [▲](#toc)
 
-Now we are going to create and RDS to hold the data.
+Now we are going to create an RDS to hold the data.
 
 The cluster we just created is in its own VPC, but you probably don't want the RDS in the same VPC with the cluster. We are going to create another VPC and use [VPC Peering](https://docs.aws.amazon.com/vpc/latest/peering/what-is-vpc-peering.html) to connect them. Most of the following techniques are borrowed from this [great article](https://dev.to/bensooraj/accessing-amazon-rds-from-aws-eks-2pc3). 
 
@@ -772,7 +775,7 @@ $ kubectl run test-mysql -ti --rm --image=alpine --generator=run-pod/v1 --image-
 | Variable_name                   | Value |
 +---------------------------------+-------+
 | explicit_defaults_for_timestamp | ON    |
-+---------------------------------+-------+    
++---------------------------------+-------+
 ```
 
 #### <a name="aks-vol"></a>Prepare Volume [▲](#toc)
