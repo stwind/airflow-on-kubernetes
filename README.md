@@ -534,6 +534,7 @@ Copy the dag on to the node
 $ export EKS_AUTOSCALLING_GROUP=$(aws cloudformation describe-stack-resources --stack-name $(eksctl get nodegroup --cluster airflow-test -o json | jq -r '.[0].StackName') | jq -r '.StackResources[] | select(.ResourceType=="AWS::AutoScaling::AutoScalingGroup") | .PhysicalResourceId')
 $ export EKS_NODE_INSTANCE_ID=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names ${EKS_AUTOSCALLING_GROUP} | jq -r '.AutoScalingGroups[0].Instances[0].InstanceId')
 $ export EKS_NODE_HOST=$(aws ec2 describe-instances --instance-ids ${EKS_NODE_INSTANCE_ID} | jq -r '.Reservations[0].Instances[0].PublicDnsName')
+$ ssh ec2-user@${EKS_NODE_HOST} "sudo rm /opt/dags/*"
 $ tar -cf - dags/*.py | ssh ec2-user@${EKS_NODE_HOST} "sudo tar -x --no-same-owner -C /opt"
 ```
 
@@ -561,6 +562,9 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["get", "create"]
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
@@ -876,6 +880,9 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["get", "create"]
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
