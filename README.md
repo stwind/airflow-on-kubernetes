@@ -539,7 +539,7 @@ $ declare -a EKS_NODE_INSTANCE_IDS=(`aws autoscaling describe-auto-scaling-group
 for EKS_NODE_INSTANCE_ID in "${EKS_NODE_INSTANCE_IDS[@]}"
 do
     EKS_NODE_HOST=$(aws ec2 describe-instances --instance-ids ${EKS_NODE_INSTANCE_ID} | jq -r '.Reservations[0].Instances[0].PublicDnsName')
-    ssh -q -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ec2-user@${EKS_NODE_HOST} "sudo rm /opt/dags/*"
+    ssh -q -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ec2-user@${EKS_NODE_HOST} "sudo rm -f /opt/dags/*"
     tar -cf - dags/*.py | ssh -q -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ec2-user@${EKS_NODE_HOST} "sudo tar -x --no-same-owner -C /opt"
 done
 ```
